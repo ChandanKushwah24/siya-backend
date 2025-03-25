@@ -46,6 +46,7 @@ python backend/app.py
 ```
 
 The API server will be available at `http://localhost:5000`
+and Swagger UI will be available at `http://localhost:5000/api`
 
 ## Frontend Setup
 
