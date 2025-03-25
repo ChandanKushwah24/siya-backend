@@ -1,51 +1,62 @@
 from models.user import User
-from api_server import api, bcrypt
+from api_server import api, bcrypt, auth_required
 from flask_restplus import Resource, fields
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token
 from datetime import timedelta
 
-# Define Model
+# API Response and Request Models
+
+# Base response model for consistent API responses
 response_base_model = api.model('Base Response Model', {
-    'message': fields.String(description='Message'),
-    'status_code': fields.Integer(description='Status Code')
+    'message': fields.String(description='Response message indicating success/failure'),
+    'status_code': fields.Integer(description='HTTP status code of the response')
 })
 
+# Model for user registration and basic user data
 user_base_model = api.model('User Base Model' , {
-    'username': fields.String(required=True, description='Username'),
-    'email': fields.String(required=True, description='Email'),
-    'password': fields.String(required=True, description='Password'),
-    'phone': fields.String(required=True, description='Phone')
+    'username': fields.String(required=True, description='Unique username for the user account'),
+    'email': fields.String(required=True, description='Valid email address for the account'),
+    'password': fields.String(required=True, description='Strong password meeting security requirements'),
 })
 
+# Model for user authentication
 login_model = api.model('Login Model', {
-    'email': fields.String(required=True, description='Email'),
-    'password': fields.String(required=True, description='Password')
+    'email': fields.String(required=True, description='Registered email address'),
+    'password': fields.String(required=True, description='Account password')
 })
 
+# Model for JWT token response
 token_model = api.model('Token Model', {
-    'access_token': fields.String(description='JWT Access Token'),
-    'token_type': fields.String(description='Token Type')
+    'access_token': fields.String(description='JWT token for API authentication'),
+    'token_type': fields.String(description='Token type (e.g., "Bearer")')
 })
 
+# Model for user timestamps
 user_date_model = api.model('User dates Model', {
-    'created_at': fields.String(required=True, description='created_at'),
-    'updated_at': fields.String(required=True, description='updated_at')
+    'created_at': fields.String(required=True, description='Account creation timestamp'),
+    'updated_at': fields.String(required=True, description='Last update timestamp')
 })
 
+# Extended user model including all user information
 user_response_model = api.inherit('User Response Model', user_base_model, user_date_model, {
-    'id': fields.Integer(required=True, description='Id of User'), 
+    'id': fields.Integer(required=True, description='Unique user identifier'), 
 })
 
+# Model for user listing endpoint response
 user_get_model = api.inherit('User Get Model', response_base_model, {
-    'data': fields.List(fields.Nested(user_response_model))
+    'data': fields.List(fields.Nested(user_response_model), description='List of user objects')
 })
 
-#### User API Section #####
+#### User Authentication API Endpoints ####
 
-# User Signup Route
 @api.route('/signup')
-@api.doc('create a new user')
+@api.doc('User Registration Endpoint')
 class CreateNewUser(Resource):
+    """Handles new user registration.
+    
+    This endpoint validates user input, ensures username and email uniqueness,
+    and creates a new user account with a securely hashed password.
+    """
     @api.expect(user_base_model)
     @api.response(201, 'User created successfully')
     @api.response(400, 'Invalid request')
@@ -53,7 +64,6 @@ class CreateNewUser(Resource):
         """Creates a new User"""
         try:
             User.createUser(api.payload)
-            
             return {'message': 'User created successfully','status_code': 201}, 201
         except Exception as e:
             return {'message': str(e), 'status_code': 400}, 400
@@ -73,7 +83,7 @@ class UserLogin(Resource):
             
             if user and bcrypt.check_password_hash(user.password, data['password']):
                 access_token = create_access_token(
-                    identity=user.id,
+                    identity=str(user.id),
                     expires_delta=timedelta(days=1)
                 )
                 return {
@@ -88,7 +98,7 @@ class UserLogin(Resource):
 # Get All Users
 @api.route('/users') 
 class GetAllUsers(Resource):
-    @jwt_required()
+    @auth_required()
     @api.marshal_with(user_get_model)
     @api.response(200, 'Success')
     @api.response(401, 'Unauthorized')

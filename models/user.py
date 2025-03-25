@@ -1,18 +1,18 @@
 from api_server import db
 from datetime import datetime
 import re
+import uuid
 
 class User(db.Model):
     __tablename__ = 'users'
     __bind_key__ = 'db_key'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     username = db.Column(db.String(100), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
 
     # hass password
     password = db.Column(db.String(128), nullable=False)
-    phone = db.Column(db.String(20), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -37,12 +37,6 @@ class User(db.Model):
             return False, "Password must contain at least one special character"
         return True, ''
 
-    @staticmethod
-    def validate_phone(phone):
-        phone_pattern = re.compile(r'^\+91[1-9][0-9]{9}$')
-        if not bool(phone_pattern.match(phone)):
-            return False, "Invalid phone number format. Please use Indian international format (e.g., +911234567890)"
-        return True, ''
 
     @staticmethod
     def validate_username(username):
@@ -54,7 +48,7 @@ class User(db.Model):
 
     @staticmethod
     def validate_fields(data):
-        required_fields = ['username', 'email', 'password', 'phone']
+        required_fields = ['username', 'email', 'password']
         missing_fields = [field for field in required_fields if not data.get(field)]
         
         if missing_fields:
@@ -78,10 +72,6 @@ class User(db.Model):
         if not is_valid:
             validation_errors.append(error)
         
-        # Phone validation
-        is_valid, error = User.validate_phone(data['phone'])
-        if not is_valid:
-            validation_errors.append(error)
 
         # If there are any validation errors, raise them
         if validation_errors:
@@ -120,8 +110,7 @@ class User(db.Model):
             new_user = User(
                 username=data['username'],
                 email=data['email'],
-                password=hashed_password,
-                phone=data['phone']
+                password=hashed_password
             )
             
             # Add to database
@@ -133,7 +122,6 @@ class User(db.Model):
                 'id': new_user.id,
                 'username': new_user.username,
                 'email': new_user.email,
-                'phone': new_user.phone,
                 'created_at': new_user.created_at,
                 'updated_at': new_user.updated_at
             }
